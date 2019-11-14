@@ -88,3 +88,5 @@ size_flags_vertical = 3
 text = "Name Last Name"
 align = 1
 valign = 1
+
+[node name="HTTPRequest" type="HTTPRequest" parent="."]

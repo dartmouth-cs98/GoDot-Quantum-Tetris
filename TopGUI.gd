@@ -8,7 +8,7 @@ var score = 0
 func _ready():
 	sc = get_node("HBoxContainer/VBoxContainer/HBoxContainer2/ScoreNum")
 	hsc = get_node("HBoxContainer/VBoxContainer/HBoxContainer2/HighScoreNum")
-	$HTTPRequest.request("endpoint_url", PoolStringArray(), false, HTTPClient.METHOD_GET, "username")
+	$HTTPRequest.request("endpoint_url", PoolStringArray(), false, HTTPClient.METHOD_GET, JSON.print({"username": "rafa", "hiscore": "10"}))
 	
 func _on_HTTPRequest_request_completed( result, response_code, headers, body ):
 	var response = JSON.parse(body.get_string_from_utf8())

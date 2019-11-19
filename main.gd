@@ -79,6 +79,7 @@ func _on_title_start():
 	## yeet
 	$MainCtr/board.visible = true
 	$MainCtr/board.start_game()
+	
 
 ##Signal responce from board
 # Makes the title scene visible

@@ -68,6 +68,8 @@ var _sp_hit_counter
 # if entanglement is activated
 var entanglement = {}
 
+var end_game_stop = false
+
 var response
 
 var temp_block_i
@@ -145,6 +147,12 @@ func start_game():
 	#set game state to running, allow _input and start _process.
 	_game_state = GameState.RUNNING
 
+	for x in range(1, board_size.x + 1):
+		for y in range(1, board_size.y + 1):
+			$board_tiles.set_cell(x, y, -1)
+
+	$SideGUI.on_game_start()
+	$TopGUI.on_game_start()
 	# set queue variables
 	_block_queue = []
 	_generate_block_queue()
@@ -161,6 +169,8 @@ func start_game():
 	# set superposition variables
 	_sp_counter = superposition_counter()
 	_is_sp = false
+	
+	end_game_stop = false
 	
 	# set other variables
 	_grace = false
@@ -233,8 +243,10 @@ func _process(delta):
 			else:
 				_spawn_inter()
 			# because drawing entanglement in spawn is slow (this is slow too)
-			if entanglement.size()>0:
+			if(entanglement.size()>0 and !end_game_stop):
 				for key in entanglement.keys():
+					if(end_game_stop):
+						break
 					var new_tile_int = -1
 					if(entanglement[key] == 1):
 						new_tile_int = randi() % _block_types.size()
@@ -245,6 +257,11 @@ func _process(delta):
 			# If all falling tiles are off screen
 			if $falling_tiles.get_child_count() == 0:
 				end_game()
+				
+		if(end_game_stop):
+			for x in range(1, board_size.x + 1):
+				for y in range(1, board_size.y + 1):
+					$board_tiles.set_cell(x, y, -1)
 ### _on_TopGUI_speed_change
 func _on_TopGUI_speed_change():
 	speed_i = wrapi(speed_i+1, 1, speeds.size()+1)
@@ -387,10 +404,10 @@ func _is_block_space_empty(pos, rot):
 func _end_block():
 	var tiles = _block.get_tiles()
 	## HERE is where I covert it to block type
-	if(_is_sp):
+	if(_is_sp and !end_game_stop):
 		if(_sp_hit_counter<1):
 			switch_blocks(_true_block)
-			if temp_server == temp_prob:
+			if temp_server != temp_prob:
 				_make_entanglement_request()
 			temp_block_i = null
 			temp_block_j = null
@@ -506,11 +523,23 @@ func _spawn_falling_blocks():
 # After animation is over, finish ending the game
 func end_game():
 	#Error catching?
+	end_game_stop = true
 	if _block != null:
 		_end_block()
 	for x in range(1, board_size.x + 1):
 		for y in range(1, board_size.y + 1):
 			$board_tiles.set_cell(x, y, -1)
+	# reset all variables
+	_block_queue.clear()
+	_is_sp = false
+	_sp_counter = 0
+	_true_block = null
+	_sp_hit_counter = 0
+	entanglement.clear()
+	response = null
+	temp_block_i = null
+	temp_block_j = null
+	
 	_game_state = GameState.STOPPED
 	emit_signal("game_over")
 
@@ -648,28 +677,28 @@ func _make_entanglement_request():
 				index += 1
 	
 	data_to_send["grid"] = inner_data
-	
-	var query = JSON.print(data_to_send)
-	#Add 'Content-Type' header:
-	var headers = ["Content-Type: application/json"]
-	$HTTPRequest.request("https://q-tetris-backend.herokuapp.com/api/flipGrid", headers, false, HTTPClient.METHOD_POST, query)
+	if(!end_game_stop):
+		var query = JSON.print(data_to_send)
+		#Add 'Content-Type' header:
+		var headers = ["Content-Type: application/json"]
+		$HTTPRequest.request("https://q-tetris-backend.herokuapp.com/api/flipGrid", headers, false, HTTPClient.METHOD_POST, query)
 
 func _on_HTTPRequest_request_completed(result, response_code, headers, body):
 	response = JSON.parse(body.get_string_from_utf8())
-
-	if typeof(response.result.result) == TYPE_REAL:
-		var server = response.result.result
-		temp_server = server
-		if int(server) == 0:
-			_true_block = temp_block_i
+	if(!end_game_stop):
+		if typeof(response.result.result) == TYPE_REAL:
+			var server = response.result.result
+			temp_server = server
+			if int(server) == 0:
+				_true_block = temp_block_i
+			else:
+				_true_block = temp_block_j
+				
 		else:
-			_true_block = temp_block_j
-			
-	else:
-		var server = response.result.result
-		for server_val in server.values():
-			var pos = Vector2(int(server_val["x"]), int(server_val["y"]))
-			var value = server_val["value"]
-			entanglement[pos] = value
+			var server = response.result.result
+			for server_val in server.values():
+				var pos = Vector2(int(server_val["x"]), int(server_val["y"]))
+				var value = server_val["value"]
+				entanglement[pos] = value
 	
 

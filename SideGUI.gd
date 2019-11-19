@@ -69,3 +69,19 @@ func draw_next_scenes(map, pieceP, pos):
 		map.remove_child(pieceP)
 		for tile in pieceP.get_tiles():
 			map.set_cellv(tile+pos, pieceP.get_tile_type(tile))
+
+func on_game_start():
+	next_tiles.clear()
+	super1_map.clear()
+	super2_map.clear()
+	
+	super_prob1.text = ""
+	super_prob2.text = ""
+
+func _on_board_game_over():
+	next_tiles.clear()
+	super1_map.clear()
+	super2_map.clear()
+	
+	super_prob1.text = ""
+	super_prob2.text = ""

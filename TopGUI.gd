@@ -43,11 +43,10 @@ func _update_score(add):
 
 func _load_high_score():
 	$HTTPRequest.request("https://q-tetris-backend.herokuapp.com/api/fetchPlayer?username=Guest", PoolStringArray(), false, HTTPClient.METHOD_GET)
-	
-func _load_player_name():
-	#get  name from server
-	pass
 
+func on_game_start():
+	score = 0
+	sc.text = String(0)
 ## _on_Speed_pressed()
 # Emit signal to tell board.gd that speed changed
 # Change the speed
@@ -63,4 +62,5 @@ func _on_board_game_over():
 		var headers = ["Content-Type: application/json"]
 		# Add 'Content-Type' header:
 		$HTTPRequest.request("https://q-tetris-backend.herokuapp.com/api/updateHiscore",  headers, false, HTTPClient.METHOD_PUT, query)
+	score = 0
 	

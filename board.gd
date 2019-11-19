@@ -407,7 +407,7 @@ func _end_block():
 	if(_is_sp and !end_game_stop):
 		if(_sp_hit_counter<1):
 			switch_blocks(_true_block)
-			if temp_server != temp_prob:
+			if temp_server == temp_prob:
 				_make_entanglement_request()
 			temp_block_i = null
 			temp_block_j = null

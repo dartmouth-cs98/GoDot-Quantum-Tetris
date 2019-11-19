@@ -613,7 +613,7 @@ func set_orientation(tiles_array):
 	map.cell_size = Vector2(16,16)
 	#map.name = "orientation" + String(rotation)
 	for tile in tiles_array:
-		map.set_cellv(tile, 9)
+		map.set_cellv(tile, 10)
 	
 	return map
 

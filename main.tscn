@@ -25,6 +25,7 @@ margin_right = 481.0
 margin_bottom = 643.0
 
 [node name="title" parent="MainCtr" instance=ExtResource( 4 )]
+visible = false
 anchor_left = 0.0
 anchor_top = 0.0
 anchor_right = 0.0

@@ -20,7 +20,7 @@ func _ready():
 ## _set_block_rotation
 # Make the correct child visible
 func _set_block_rotation(value):
-	block_rotation = value
+	block_rotation = int(value)
 	if get_child_count() > 0:
 		var real_rotation = wrapi(block_rotation, 0, get_child_count())
 
@@ -79,8 +79,8 @@ func get_tiles(pos = Vector2(0, 0), rot = block_rotation):
 	var result = get_child(real_rotation).get_used_cells()
 	for i in range(result.size()):
 		result[i] += pos
-	#wait so how does this full array work then
 	return result
+
 
 func get_tile_type(tile):
 	return _current_orientation.get_cellv(tile)

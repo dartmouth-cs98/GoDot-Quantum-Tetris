@@ -1,16 +1,7 @@
 tool
 extends Node2D
 
-#########################   Notes   ##########################
-
-##### Ugh Notes
-## Spawn block checks for game over, set that to process and top row of program
-## What does grace do?
-## Set up board speed function
-## Figure out what result from block.gd encodes.
-## See 211, 212
 #########################   Signals, Constants, Variables   ##########################
-
 
 ##Signals that this script will broadcast
 #Connects to _on_board_pause() in main.gd
@@ -67,11 +58,25 @@ var _block
 
 ########## Superpositon
 # is this block a superposition
-var is_sp
-# what are the blocks
-var sp_blocks
+var _is_sp
 # counter till next superposition
-var sp_counter
+var _sp_counter
+# the block our superposition block will evaluate to
+var _true_block
+# when will the superposition block be loaded
+var _sp_hit_counter
+# if entanglement is activated
+var entanglement = {}
+
+var response
+
+var temp_block_i
+var temp_block_j
+
+var temp_prob
+var temp_server
+
+
 
 ########## Variables for moving a block down a notch
 # Max time between plater block movements
@@ -135,7 +140,6 @@ func _set_size(value):
 			$board_tiles.set_cell(board_size.x + 1, y, border_tile)
 
 func start_game():
-	#
 	randomize()
 
 	#set game state to running, allow _input and start _process.
@@ -155,16 +159,14 @@ func start_game():
 	_move_time = _max_move_time 
 	
 	# set superposition variables
-	sp_counter = superposition_counter()
-	is_sp = false
+	_sp_counter = superposition_counter()
+	_is_sp = false
 	
 	# set other variables
 	_grace = false
 	_lines_left = LINES_PER_LEVEL
-
-	
-
-	_spawn_block()
+	# Start the game!
+	_spawn_inter()
 
 ########################### Input and Process Functions
 func _input(event):
@@ -205,10 +207,6 @@ func _process(delta):
 				if _block:
 					_drop_block()
 					block_dropped = true
-				# Spawn a new block if it doesn't exist
-				# Leave commented
-#				else:
-#					_spawn_block()
 					_block_time += _max_block_time
 
 			if _block:
@@ -227,12 +225,21 @@ func _process(delta):
 
 				_control_block(move_left, move_right, move_down, false, false)
 
+				
 				if can_move:
 					_move_time += _max_move_time
 			# By putting this here, the program gets a new block as soon as the old one hits
 			# the problem with reading if it hit or not has to do with time values
 			else:
-				_spawn_block()
+				_spawn_inter()
+			# because drawing entanglement in spawn is slow (this is slow too)
+			if entanglement.size()>0:
+				for key in entanglement.keys():
+					var new_tile_int = -1
+					if(entanglement[key] == 1):
+						new_tile_int = randi() % _block_types.size()
+					$board_tiles.set_cellv(key, new_tile_int)
+				entanglement.clear()
 		## If the falling block animation is over, end the game.
 		elif _game_state == GameState.OVER:
 			# If all falling tiles are off screen
@@ -243,30 +250,43 @@ func _on_TopGUI_speed_change():
 	speed_i = wrapi(speed_i+1, 1, speeds.size()+1)
 	_max_block_time = (START_BLOCK_TIME/ float(speed_i))
 	_max_move_time = (START_MOVE_TIME/float(speed_i))
-	print(String(speed_i))
-	print(String(_max_block_time))
-	print(String(_max_move_time))
 
 ########################### Manage Block Queue
+##_spawn_inter
+# this needs to: show next pieces, spawn blocks, determine superposition
 
-func _spawn_block():
-	if _block_queue.empty():
+func _spawn_inter():
+	### Check block queue size
+	if _block_queue.size()<3:
 		_generate_block_queue()
-
-	# get block from queue
-	_block = _block_queue.pop_front().instance()
-	add_child(_block)
 	
-	# if last piece was in superposition, reset it.
-	if(is_sp):
-		is_sp = !is_sp
+	### Superposition 
 	
 	# determine superposition
-	if (sp_counter == 0):
-		is_sp = true
-		sp_counter = superposition_counter()
+	if (_sp_counter == 0):
+		_is_sp = true
+		_sp_counter = superposition_counter()
+		# YEETT  - change this to just give array to set superposition and get two blocks
+		var result = set_superposition(_block_types)
+		_block_queue.insert(2, result) 
+
 	else:
-		sp_counter -= 1
+		_sp_counter -= 1
+	### Spawn handle next block 
+	_spawn_block()
+	
+	### Update Nexts
+	$SideGUI.change_next(_block_queue[0], _block_queue[1])
+	
+
+func _spawn_block():
+	# get block from queue
+	var _poten_block = _block_queue.pop_front()
+	if _poten_block.get_class()=="PackedScene":
+		_block = _poten_block.instance()
+	else:
+		_block = _poten_block
+	add_child(_block)
 
 	var block_rect = _block.get_rect()
 
@@ -285,7 +305,6 @@ func _spawn_block():
 	if not _is_block_space_empty(block_pos, 0):
 		_set_game_over()
 		
-	#set superposition
 
 ## _generate_block_queue
 # Add a certain number of blocks of each type
@@ -367,12 +386,31 @@ func _is_block_space_empty(pos, rot):
 
 func _end_block():
 	var tiles = _block.get_tiles()
+	## HERE is where I covert it to block type
+	if(_is_sp):
+		if(_sp_hit_counter<1):
+			switch_blocks(_true_block)
+			if temp_server == temp_prob:
+				_make_entanglement_request()
+			temp_block_i = null
+			temp_block_j = null
+			
+			_is_sp = !_is_sp
+			reset_superposition()
+			
+		else:
+			_sp_hit_counter -= 1	
+		
+	
 	for t in tiles:
 		$board_tiles.set_cellv(t + _block.block_position,
 				_block.get_tile_type(t))
 
 	_block.queue_free()
 	_block = null
+	# if last piece was in superposition, reset it.
+	
+	
 
 	if _game_state == GameState.RUNNING:
 		_check_for_completed_lines()
@@ -476,14 +514,162 @@ func end_game():
 	_game_state = GameState.STOPPED
 	emit_signal("game_over")
 
-########################### Quantum Functions
-# set which blocks it will be
-# array holds block types right now, sp_blocks hold ints for that array
-# can make sp_blocks hold the actual blocks. How to animate this. 
-func set_superposition(block_i):
-	sp_blocks = Vector2(block_i, randi() % _block_types.size())
-	pass
+########################### SuperPosition Functions
 
-# will set next value for number of blocks with superposition
+############ Main Functions
+func set_superposition(block_array):
+	# Generate two different indices
+	var i = (randi() % (block_array.size()))
+	var j = (randi() % (block_array.size()))
+	while j == i:
+		j = (randi() % (block_array.size()))
+	
+	# Get PackedScenes for blocks
+	var blockP_i = block_array[i]
+	var blockP_j = block_array[j]
+	
+	# Generate probabilities
+	var prob1 = randi() % 100 + 1
+	var prob2 = 100 - prob1
+	
+	if prob1>50:
+		temp_prob = 1
+	else:
+		temp_prob = 0
+	# Get block nodes from PackedScenes
+	var block_i = blockP_i.instance()
+	var block_j = blockP_j.instance()
+	
+	var tiles_array_0 = block_i.get_tiles() + block_j.get_tiles()
+	block_i._set_block_rotation(1)
+	block_j._set_block_rotation(1)
+	var tiles_array_1 = block_i.get_tiles() + block_j.get_tiles()
+	block_i._set_block_rotation(2)
+	block_j._set_block_rotation(2)
+	var tiles_array_2 = block_i.get_tiles() + block_j.get_tiles()
+	block_i._set_block_rotation(3)
+	block_j._set_block_rotation(3)
+	var tiles_array_3 = block_i.get_tiles() + block_j.get_tiles()
+	
+	var result = Node2D.new()
+	
+	var orientation1 = set_orientation(tiles_array_0)
+	var orientation2 = set_orientation(tiles_array_1)
+	var orientation3 = set_orientation(tiles_array_2)
+	var orientation4 = set_orientation(tiles_array_3)
+	
+	
+	result.add_child(orientation1)
+	result.add_child(orientation2)
+	result.add_child(orientation3)
+	result.add_child(orientation4)
+	
+	orientation1.owner = result
+	orientation2.owner = result
+	orientation3.owner = result
+	orientation4.owner = result
+	
+	result.set_script(load("res://blocks/block.gd"))
+	
+	#CONNECT TO SERVER
+	_make_superposition_request(prob1)
+	
+	_true_block = block_i
+	
+	temp_block_i = block_i
+	temp_block_j = block_j
+	# Update the UI	
+	$SideGUI.set_superposition_data(prob1, blockP_i, prob2, blockP_j)
+	
+	_sp_hit_counter = 2
+	
+	return result
+
 func superposition_counter():
 	return((randi() % 7) + 3)
+
+func reset_superposition():
+	$SideGUI.empty_superposition()
+	
+############ Helper Functions
+	
+func switch_blocks(blocki):
+	#save position and orientation of blocki and give it to blockj. Change block 
+	#to blockj.
+	var position = _block._get_block_position()
+	var orientation = int(_block.block_rotation)
+	_block.queue_free()
+	_block = null
+	_block = _true_block
+	_block._set_block_position(position)
+	_block._set_block_rotation(orientation)
+	_true_block = null
+	pass
+
+func set_orientation(tiles_array):
+	## Set map parameters
+	var map = TileMap.new()
+	map.tile_set = load("res://tilesets/tiles.tres")
+	map.cell_size = Vector2(16,16)
+	#map.name = "orientation" + String(rotation)
+	for tile in tiles_array:
+		map.set_cellv(tile, 9)
+	
+	return map
+
+
+########################## Http Request Fuctions
+
+func _make_superposition_request(prob):
+	var headers = ["Content-Type: application/json"]
+	# Add 'Content-Type' header:
+	$HTTPRequest.request("https://q-tetris-backend.herokuapp.com/api/determineSuperposition?prob=" + String(prob),  headers, false, HTTPClient.METHOD_GET)
+	
+func _make_entanglement_request():
+	var data_to_send = {}
+	var inner_data = {}
+	var true_tiles = _block.get_tiles(_block.block_position)
+	var rows = []
+	for tile in true_tiles:
+		if(rows.find(tile[1]) == -1):
+			rows.append(tile[1])
+	var index = 0 
+	for y in rows:
+		for x in range(1, board_size.x+1):
+			if(true_tiles.find(Vector2(x,y)) == -1):	
+				var value
+				if($board_tiles.get_cell(x,y) > -1):
+					value =1
+				else: 
+					value = 0
+				
+				var position_value = {"value": value, "x":x,"y":y }
+				inner_data[String(index)] = position_value
+				index += 1
+	
+	data_to_send["grid"] = inner_data
+	
+	var query = JSON.print(data_to_send)
+	#Add 'Content-Type' header:
+	var headers = ["Content-Type: application/json"]
+	$HTTPRequest.request("https://q-tetris-backend.herokuapp.com/api/flipGrid", headers, false, HTTPClient.METHOD_POST, query)
+
+func _on_HTTPRequest_request_completed(result, response_code, headers, body):
+	response = JSON.parse(body.get_string_from_utf8())
+
+	if typeof(response.result.result) == TYPE_REAL:
+		var server = response.result.result
+		temp_server = server
+		if int(server) == 0:
+			_true_block = temp_block_i
+		else:
+			_true_block = temp_block_j
+			
+	else:
+		var server = response.result.result
+		for server_val in server.values():
+			var pos = Vector2(int(server_val["x"]), int(server_val["y"]))
+			var value = server_val["value"]
+			entanglement[pos] = value
+	
+
